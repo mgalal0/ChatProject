@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+{% block title %}Chat with {{ other_user.username }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <!-- Chat Header -->
+        <div class="p-4 border-b flex items-center space-x-4">
+            <div class="relative">
+                {% if current_user.is_authenticated %}
+                    <img src="{{ url_for('static', filename='uploads/' + other_user.profile_photo) }}" 
+                         class="w-12 h-12 rounded-full object-cover"
+                         alt="Profile">
+                    <span class="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white 
+                               {{ 'bg-green-500' if other_user.is_online else 'bg-gray-400' }}"></span>
+                {% endif %}
+            </div>
+            <div>
+                <h2 class="text-lg font-medium text-gray-900">{{ other_user.username }}</h2>
+                <p class="text-sm text-gray-500">
+                    {{ 'Online' if other_user.is_online else 'Last seen ' + other_user.last_seen.strftime('%Y-%m-%d %H:%M') }}
+                </p>
+            </div>
+        </div>
+        
+        <!-- Messages Container -->
+        <div id="messageContainer" class="h-[600px] overflow-y-auto p-4 space-y-4">
+            {% for message in messages %}
+            <div class="flex {{ 'justify-end' if message.sender_id == current_user.id else 'justify-start' }}">
+                <div class="max-w-[70%] break-words rounded-lg px-4 py-2 
+                          {{ 'bg-blue-600 text-white' if message.sender_id == current_user.id else 'bg-gray-100 text-gray-900' }}">
+                    <p class="text-sm">{{ message.content }}</p>
+                    <div class="flex items-center justify-end mt-1 space-x-1">
+                        <span class="text-xs {{ 'text-blue-100' if message.sender_id == current_user.id else 'text-gray-500' }}">
+                            {{ message.timestamp.strftime('%H:%M') }}
+                        </span>
+                        {% if message.sender_id == current_user.id %}
+                        <div class="message-status" data-message-id="{{ message.id }}" 
+                             data-status="{{ message.status }}" data-read="{{ message.is_read|tojson }}">
+                            {% if message.status == 'sent' %}
+                                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                </svg>
+                            {% else %}
+                                <div class="flex">
+                                    <svg class="w-4 h-4 {{ 'text-white' if message.is_read else 'text-gray-400' }}" 
+                                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                    <svg class="w-4 h-4 -ml-2 {{ 'text-white' if message.is_read else 'text-gray-400' }}" 
+                                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+        </div>
+        
+        <!-- Message Input -->
+        <div class="p-4 border-t">
+            <div id="typingIndicator" class="px-4 py-2 text-sm text-gray-500 hidden">
+                {{ other_user.username }} is typing...
+            </div>
+
+            <form id="messageForm" class="flex space-x-2">
+                
+                <input type="text" id="messageInput" 
+                class="mt-1 block w-full px-4 py-3 text-base rounded-lg border-gray-300 shadow-sm 
+                focus:border-blue-500 focus:ring-blue-500 
+                placeholder:text-gray-400"
+                       placeholder="Type a message...">
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 
+                                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Send
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const userData = {
+        currentUserId: JSON.parse('{{ current_user.id|tojson|safe }}'),
+        receiverId: JSON.parse('{{ other_user.id|tojson|safe }}'),
+        receiverUsername: '{{ other_user.username|safe }}',
+        receiverIsOnline: JSON.parse('{{ other_user.is_online|tojson|safe }}')
+    };
+
+    const socket = io({
+        auth: { userId: userData.currentUserId }
+    });
+
+    const messageContainer = document.getElementById('messageContainer');
+    const messageForm = document.getElementById('messageForm');
+    const messageInput = document.getElementById('messageInput');
+    const typingIndicator = document.getElementById('typingIndicator');
+
+    function getStatusHTML(status, isRead) {
+        if (status === 'sent') {
+            // Single gray check for sent
+            return `<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                   </svg>`;
+        } else {
+            // Double check - gray for delivered/unread, white for read
+            const color = isRead ? 'text-white' : 'text-gray-400';
+            return `<div class="flex">
+                    <svg class="w-4 h-4 ${color}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    <svg class="w-4 h-4 -ml-2 ${color}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                   </div>`;
+        }
+    }
+
+    function createMessageHTML(data, isMyMessage) {
+        const status = isMyMessage ? (userData.receiverIsOnline ? 'delivered' : 'sent') : null;
+        return `
+            <div class="flex ${isMyMessage ? 'justify-end' : 'justify-start'}">
+                <div class="max-w-[70%] break-words rounded-lg px-4 py-2 
+                          ${isMyMessage ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}">
+                    <p class="text-sm">${data.content}</p>
+                    <div class="flex items-center justify-end mt-1 space-x-1">
+                        <span class="text-xs ${isMyMessage ? 'text-blue-100' : 'text-gray-500'}">
+                            ${new Date(data.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </span>
+                        ${isMyMessage ? `
+                            <div class="message-status" data-message-id="${data.id}" 
+                                 data-status="${status}" data-read="${data.is_read}">
+                                ${getStatusHTML(status, data.is_read)}
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // When user comes online, mark messages as delivered (double gray)
+    socket.on('user_online', (data) => {
+        if (data.user_id === userData.receiverId) {
+            userData.receiverIsOnline = true;
+            const sentMessages = document.querySelectorAll('.message-status[data-status="sent"]');
+            sentMessages.forEach(statusElement => {
+                statusElement.innerHTML = getStatusHTML('delivered', false);
+                statusElement.dataset.status = 'delivered';
+                statusElement.dataset.read = 'false';
+                
+                socket.emit('message_received', { 
+                    message_id: statusElement.dataset.messageId 
+                });
+            });
+        }
+    });
+
+    // When user actually opens the chat, mark messages as read (double white)
+    socket.on('connect', () => {
+        socket.emit('join', { 
+            room: `private_${userData.currentUserId}_${userData.receiverId}` 
+        });
+
+        // Only mark as read if we're in the actual chat view
+        if (window.location.pathname.includes('/chat/')) {
+            const deliveredMessages = document.querySelectorAll('.message-status[data-status="delivered"]');
+            deliveredMessages.forEach(status => {
+                status.dataset.read = 'true';
+                status.innerHTML = getStatusHTML('delivered', true);
+                
+                socket.emit('mark_as_read', { 
+                    message_id: status.dataset.messageId 
+                });
+            });
+        }
+    });
+
+    socket.on('new_message', (data) => {
+        if (data.sender_id === userData.currentUserId || data.sender_id === userData.receiverId) {
+            const messageHTML = createMessageHTML(data, data.sender_id === userData.currentUserId);
+            messageContainer.insertAdjacentHTML('beforeend', messageHTML);
+            messageContainer.scrollTop = messageContainer.scrollHeight;
+
+            // If receiving a message in active chat, mark as read
+            if (data.sender_id === userData.receiverId && window.location.pathname.includes('/chat/')) {
+                socket.emit('mark_as_read', { message_id: data.id });
+            } else if (data.sender_id === userData.receiverId) {
+                // Otherwise just mark as delivered
+                socket.emit('message_received', { message_id: data.id });
+            }
+        }
+    });
+
+    socket.on('message_status_update', (data) => {
+        const statusElement = document.querySelector(`.message-status[data-message-id="${data.message_id}"]`);
+        if (statusElement) {
+            statusElement.innerHTML = getStatusHTML(data.status, data.is_read);
+            statusElement.dataset.status = data.status;
+            statusElement.dataset.read = data.is_read;
+        }
+    });
+
+    socket.on('user_offline', (data) => {
+        if (data.user_id === userData.receiverId) {
+            userData.receiverIsOnline = false;
+        }
+    });
+
+    messageForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const message = messageInput.value.trim();
+        if (message) {
+            socket.emit('send_message', {
+                message: message,
+                receiver_id: userData.receiverId
+            });
+            messageInput.value = '';
+        }
+    });
+
+    // Handle window focus to mark messages as read when chat is active
+    window.addEventListener('focus', () => {
+        if (window.location.pathname.includes('/chat/')) {
+            const unreadMessages = document.querySelectorAll('.message-status[data-status="delivered"][data-read="false"]');
+            unreadMessages.forEach(status => {
+                status.dataset.read = 'true';
+                status.innerHTML = getStatusHTML('delivered', true);
+                socket.emit('mark_as_read', { 
+                    message_id: status.dataset.messageId 
+                });
+            });
+        }
+    });
+
+    // Typing indicator handlers
+    let typingTimeout;
+    messageInput.addEventListener('input', () => {
+        clearTimeout(typingTimeout);
+        socket.emit('typing', { receiver_id: userData.receiverId });
+        typingTimeout = setTimeout(() => {
+            socket.emit('stop_typing', { receiver_id: userData.receiverId });
+        }, 1000);
+    });
+
+    socket.on('user_typing', (data) => {
+        if (data.user_id === userData.receiverId && typingIndicator) {
+            typingIndicator.classList.remove('hidden');
+        }
+    });
+
+    socket.on('user_stop_typing', (data) => {
+        if (data.user_id === userData.receiverId && typingIndicator) {
+            typingIndicator.classList.add('hidden');
+        }
+    });
+
+    // Initial scroll to bottom
+    messageContainer.scrollTop = messageContainer.scrollHeight;
+});
+</script>
+{% endblock %}

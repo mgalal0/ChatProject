@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}{{ room.name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <!-- Room Header -->
+        <div class="p-4 border-b flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 
+                           flex items-center justify-center text-white font-medium">
+                    {{ room.name[0].upper() }}
+                </div>
+                <div>
+                    <h2 class="text-lg font-medium text-gray-900">{{ room.name }}</h2>
+                    <p class="text-sm text-gray-500">{{ room.members|length }} members</p>
+                </div>
+            </div>
+            <button onclick="document.getElementById('membersModal').classList.remove('hidden')"
+                    class="px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                Members
+            </button>
+        </div>
+
+        <!-- Messages Container -->
+        <div id="messageContainer" class="h-[600px] overflow-y-auto p-4 space-y-4">
+            {% for message in messages %}
+                <div class="flex {{ 'justify-end' if message.sender_id == current_user.id else 'justify-start' }}">
+                    <div class="max-w-[70%]">
+                        {% if message.sender_id != current_user.id %}
+                            <p class="text-xs text-gray-500 mb-1 ml-1">{{ message.sender.username }}</p>
+                        {% endif %}
+                        <div class="break-words rounded-lg px-4 py-2 
+                                  {{ 'bg-blue-600 text-white' if message.sender_id == current_user.id else 'bg-gray-100 text-gray-900' }}">
+                            <p class="text-sm">{{ message.content }}</p>
+                            <p class="text-xs mt-1 {{ 'text-blue-200' if message.sender_id == current_user.id else 'text-gray-500' }}">
+                                {{ message.timestamp.strftime('%H:%M') }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <!-- Message Input -->
+        <div class="p-4 border-t">
+            <form id="messageForm" class="flex space-x-2">
+                <div class="flex-1">
+                    <input type="text" id="messageInput" 
+                    class="mt-1 block w-full px-4 py-3 text-base rounded-lg border-gray-300 shadow-sm 
+                    focus:border-blue-500 focus:ring-blue-500 
+                    placeholder:text-gray-400"
+                           placeholder="Type a message...">
+                    <div id="typingIndicator" class="hidden">
+                        <p class="text-xs text-gray-500 mt-1"></p>
+                    </div>
+                </div>
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    Send
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Members Modal -->
+<div id="membersModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50">
+    <div class="flex min-h-screen items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h3 class="text-lg font-medium text-gray-900">Room Members</h3>
+                <button onclick="document.getElementById('membersModal').classList.add('hidden')"
+                        class="text-gray-400 hover:text-gray-500">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-4">
+                <div class="divide-y">
+                    {% for member in room.members %}
+                    <div class="flex items-center justify-between py-3">
+                        <span class="text-gray-900">{{ member.username }}</span>
+                        <span class="px-2 py-1 text-xs rounded-full 
+                                   {{ 'bg-green-100 text-green-800' if member.is_online else 'bg-gray-100 text-gray-800' }}">
+                            {{ 'Online' if member.is_online else 'Offline' }}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const userData = {
+        currentUserId: JSON.parse('{{ current_user.id|tojson|safe }}'),
+        roomId: JSON.parse('{{ room.id|tojson|safe }}')
+    };
+
+    const socket = io({
+        auth: { userId: userData.currentUserId }
+    });
+
+    const messageContainer = document.getElementById('messageContainer');
+    const messageForm = document.getElementById('messageForm');
+    const messageInput = document.getElementById('messageInput');
+    const typingIndicator = document.getElementById('typingIndicator');
+
+    function createMessageHTML(data, isMyMessage) {
+        return `
+            <div class="flex ${isMyMessage ? 'justify-end' : 'justify-start'}">
+                <div class="max-w-[70%]">
+                    ${!isMyMessage ? `<p class="text-xs text-gray-500 mb-1 ml-1">${data.sender_name}</p>` : ''}
+                    <div class="break-words rounded-lg px-4 py-2 
+                               ${isMyMessage ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}">
+                        <p class="text-sm">${data.content}</p>
+                        <p class="text-xs mt-1 ${isMyMessage ? 'text-blue-200' : 'text-gray-500'}">
+                            ${new Date(data.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    socket.on('connect', () => {
+        socket.emit('join', {
+            room: `room_${userData.roomId}`,
+            room_id: userData.roomId
+        });
+    });
+
+    socket.on('new_message', (data) => {
+        const messageHTML = createMessageHTML(data, data.sender_id === userData.currentUserId);
+        messageContainer.insertAdjacentHTML('beforeend', messageHTML);
+        messageContainer.scrollTop = messageContainer.scrollHeight;
+    });
+
+    socket.on('user_typing', (data) => {
+        typingIndicator.querySelector('p').textContent = `${data.username} is typing...`;
+        typingIndicator.classList.remove('hidden');
+    });
+
+    socket.on('user_stop_typing', () => {
+        typingIndicator.classList.add('hidden');
+    });
+
+    socket.on('status', (data) => {
+        const statusHTML = `
+            <div class="text-center text-sm text-gray-500 my-2">
+                ${data.msg}
+            </div>
+        `;
+        messageContainer.insertAdjacentHTML('beforeend', statusHTML);
+        messageContainer.scrollTop = messageContainer.scrollHeight;
+    });
+
+    messageForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const message = messageInput.value.trim();
+        if (message) {
+            socket.emit('send_message', {
+                message: message,
+                room_id: userData.roomId
+            });
+            messageInput.value = '';
+            messageInput.focus();
+        }
+    });
+
+    let typingTimeout;
+    messageInput.addEventListener('input', () => {
+        clearTimeout(typingTimeout);
+        socket.emit('typing', { room_id: userData.roomId });
+        
+        typingTimeout = setTimeout(() => {
+            socket.emit('stop_typing', { room_id: userData.roomId });
+        }, 1000);
+    });
+
+    window.addEventListener('beforeunload', () => {
+        socket.emit('leave', { 
+            room: `room_${userData.roomId}`,
+            room_id: userData.roomId 
+        });
+        socket.disconnect();
+    });
+
+    // Initial scroll
+    messageContainer.scrollTop = messageContainer.scrollHeight;
+});
+</script>
+{% endblock %}

@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+{% block title %}Chat{% endblock %}
+
+{% block content %}
+<div class="h-[calc(100vh-12rem)] flex gap-6">
+    <!-- Sidebar -->
+    <div class="w-80 flex flex-col bg-white rounded-xl shadow-sm">
+        <!-- Header -->
+        <div class="p-4 flex justify-between items-center border-b">
+            <h2 class="text-lg font-semibold text-gray-900">Chats</h2>
+            <button onclick="document.getElementById('newChatModal').classList.remove('hidden')" 
+                    class="p-2 rounded-lg hover:bg-gray-100 transition">
+                <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Search -->
+        <div class="p-4 border-b">
+            <div class="relative">
+                <input type="text" id="searchContacts" 
+                       class="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" 
+                       placeholder="Search...">
+                <svg class="w-5 h-5 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex border-b">
+            <button class="flex-1 px-4 py-3 text-sm font-medium text-blue-600 border-b-2 border-blue-600" data-tab="users">Users</button>
+            <button class="flex-1 px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-700" data-tab="rooms">Rooms</button>
+        </div>
+
+        <!-- Chat Lists -->
+        <div class="flex-1 overflow-y-auto">
+            <!-- Users List -->
+            <div id="users" class="divide-y divide-gray-100">
+                {% for preview in user_previews %}
+                <a href="{{ url_for('private_chat', user_id=preview.user.id) }}" 
+                   class="flex items-center gap-3 p-4 hover:bg-gray-50 transition">
+                    <div class="relative flex-shrink-0">
+                        <img src="{{ url_for('static', filename='uploads/' + preview.user.profile_photo) }}" 
+                             class="w-10 h-10 rounded-full object-cover"
+                             alt="{{ preview.user.username }}">
+                        <span class="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white 
+                                   {{ 'bg-green-500' if preview.user.is_online else 'bg-gray-400' }}"></span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex justify-between items-center">
+                            <p class="font-medium text-gray-900">{{ preview.user.username }}</p>
+                            {% if preview.last_message %}
+                                <span class="text-xs text-gray-500">{{ preview.last_message.timestamp.strftime('%H:%M') }}</span>
+                            {% endif %}
+                        </div>
+                        {% if preview.last_message %}
+                            <p class="text-sm text-gray-500 truncate">
+                                {% if preview.last_message.sender_id == current_user.id %}
+                                    <span class="text-blue-600">You:</span>
+                                {% endif %}
+                                {{ preview.last_message.content }}
+                            </p>
+                        {% endif %}
+                    </div>
+                    {% if preview.unread_count > 0 %}
+                        <span class="px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded-full">
+                            {{ preview.unread_count }}
+                        </span>
+                    {% endif %}
+                </a>
+                {% endfor %}
+            </div>
+
+            <!-- Rooms List -->
+            <div id="rooms" class="hidden divide-y divide-gray-100">
+                {% for room in rooms %}
+                <a href="{{ url_for('chat_room', room_id=room.id) }}" 
+                   class="flex items-center gap-3 p-4 hover:bg-gray-50 transition">
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 
+                               flex items-center justify-center text-white font-medium">
+                        {{ room.name[0].upper() }}
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2">
+                            <p class="font-medium text-gray-900">{{ room.name }}</p>
+                            <span class="px-2 py-0.5 text-xs font-medium rounded-full 
+                                       {{ 'bg-gray-100 text-gray-700' if room.is_private else 'bg-green-100 text-green-700' }}">
+                                {{ 'Private' if room.is_private else 'Public' }}
+                            </span>
+                        </div>
+                        <p class="text-sm text-gray-500">{{ room.members|length }} members</p>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Area -->
+    <div class="flex-1 bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="h-full flex items-center justify-center text-center p-6">
+            <div>
+                <svg class="w-16 h-16 text-gray-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                </svg>
+                <h3 class="mt-4 text-lg font-medium text-gray-900">Welcome to Chat</h3>
+                <p class="mt-1 text-sm text-gray-500">Select a contact or room to start chatting</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Chat Modal -->
+<div id="newChatModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50">
+    <div class="flex min-h-screen items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl max-w-lg w-full">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h3 class="text-lg font-medium text-gray-900">Create New Chat</h3>
+                <button onclick="document.getElementById('newChatModal').classList.add('hidden')" 
+                        class="text-gray-400 hover:text-gray-500">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <form action="{{ url_for('create_room') }}" method="POST" class="p-6 space-y-6">
+                <!-- Chat Type -->
+                <div class="space-y-4">
+                    <label class="text-sm font-medium text-gray-700 block">Chat Type</label>
+                    <div class="space-y-2">
+                        <div class="flex items-center">
+                            <input type="radio" id="privateChat" name="is_group" value="false" checked
+                                   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300">
+                            <label for="privateChat" class="ml-2 text-sm text-gray-700">Private Chat</label>
+                        </div>
+                        <div class="flex items-center">
+                            <input type="radio" id="groupChat" name="is_group" value="true"
+                                   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300">
+                            <label for="groupChat" class="ml-2 text-sm text-gray-700">Group Chat</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Privacy Setting -->
+                <div class="flex items-center">
+                    <input type="checkbox" id="isPrivate" name="is_private" value="true"
+                           class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                    <label for="isPrivate" class="ml-2 text-sm text-gray-700">
+                        Private Room (only invited members can join)
+                    </label>
+                </div>
+
+                <!-- Name -->
+                <div>
+                    <label for="name" class="text-sm font-medium text-gray-700 block">Name</label>
+                    <input type="text" id="name" name="name" required
+                           class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm 
+                                  focus:border-blue-500 focus:ring-blue-500">
+                </div>
+
+                <!-- Members -->
+<div id="membersSelect">
+    <label class="text-sm font-medium text-gray-700 block">Select Members</label>
+    <select name="members" multiple
+            class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm 
+                   focus:border-blue-500 focus:ring-blue-500 min-h-[100px]">
+        {% for preview in user_previews %}
+            {% if preview.user.id != current_user.id %}
+                <option value="{{ preview.user.id }}">{{ preview.user.username }}</option>
+            {% endif %}
+        {% endfor %}
+    </select>
+    <p class="mt-1 text-xs text-gray-500">Hold Ctrl/Cmd to select multiple users (for group chat)</p>
+</div>
+
+                <button type="submit" 
+                        class="w-full inline-flex justify-center rounded-lg border border-transparent 
+                               bg-blue-600 px-4 py-2 text-sm font-medium text-white 
+                               hover:bg-blue-700 focus:outline-none focus:ring-2 
+                               focus:ring-blue-500 focus:ring-offset-2">
+                    Create Chat
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    // Tab switching
+    document.querySelectorAll('[data-tab]').forEach(button => {
+        button.addEventListener('click', () => {
+            // Update buttons
+            document.querySelectorAll('[data-tab]').forEach(btn => {
+                btn.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
+                btn.classList.add('text-gray-500');
+            });
+            button.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
+            button.classList.remove('text-gray-500');
+
+            // Update content
+            document.querySelectorAll('#users, #rooms').forEach(content => {
+                content.classList.add('hidden');
+            });
+            document.getElementById(button.dataset.tab).classList.remove('hidden');
+        });
+    });
+
+</script>
+<!-- Socket.IO Script -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+<script>
+    const socket = io();
+    
+    socket.on('connect', () => {
+        console.log('Connected to server');
+    });
+    
+    socket.on('user_online', (data) => {
+        const userIndicator = document.querySelector(`[data-user-id="${data.user_id}"] .status-indicator`);
+        if (userIndicator) {
+            userIndicator.classList.remove('bg-secondary');
+            userIndicator.classList.add('bg-success');
+        }
+    });
+    
+    socket.on('user_offline', (data) => {
+        const userIndicator = document.querySelector(`[data-user-id="${data.user_id}"] .status-indicator`);
+        if (userIndicator) {
+            userIndicator.classList.remove('bg-success');
+            userIndicator.classList.add('bg-secondary');
+        }
+    });
+    
+    // Search functionality
+    document.getElementById('searchContacts').addEventListener('input', function(e) {
+        const searchTerm = e.target.value.toLowerCase();
+        const users = document.querySelectorAll('.user-item');
+        const rooms = document.querySelectorAll('.room-item');
+        
+        [...users, ...rooms].forEach(item => {
+            const name = item.querySelector('h6').textContent.toLowerCase();
+            if (name.includes(searchTerm)) {
+                item.style.display = '';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    });
+
+
+    
+</script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const privateChatRadio = document.getElementById('privateChat');
+        const groupChatRadio = document.getElementById('groupChat');
+        const isPrivateCheck = document.getElementById('isPrivate');
+        const membersSelect = document.getElementById('membersSelect');
+    
+        function updateFormVisibility() {
+            if (privateChatRadio.checked) {
+                isPrivateCheck.parentElement.style.display = 'none';
+                isPrivateCheck.checked = true;
+                membersSelect.querySelector('select').setAttribute('multiple', false);
+            } else {
+                isPrivateCheck.parentElement.style.display = 'block';
+                membersSelect.querySelector('select').setAttribute('multiple', true);
+            }
+        }
+    
+        privateChatRadio.addEventListener('change', updateFormVisibility);
+        groupChatRadio.addEventListener('change', updateFormVisibility);
+        
+        // Initial state
+        updateFormVisibility();
+    });
+    </script>
+
+<script>
+    socket.on('new_message', function(data) {
+        // Update unread count and preview
+        const userItem = document.querySelector(`[href="/chat/${data.sender_id}"]`);
+        if (userItem) {
+            const preview = userItem.querySelector('p');
+            preview.innerHTML = `${data.content}`;
+            
+            let badge = userItem.querySelector('.badge');
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.classList.add('badge', 'bg-primary', 'rounded-pill', 'ms-2');
+                userItem.appendChild(badge);
+            }
+            badge.textContent = parseInt(badge.textContent || 0) + 1;
+        }
+    });
+    
+    // When entering chat, mark messages as read
+    if (window.location.pathname.startsWith('/chat/')) {
+        const userId = window.location.pathname.split('/').pop();
+        socket.emit('mark_messages_read', { sender_id: userId });
+    }
+    </script>
+
+
+<script>
+    document.getElementById('searchContacts').addEventListener('input', function(e) {
+    const searchTerm = e.target.value.toLowerCase();
+    
+    // Search in users list
+    document.querySelectorAll('#users > a').forEach(userItem => {
+        const username = userItem.querySelector('.font-medium').textContent.toLowerCase();
+        userItem.style.display = username.includes(searchTerm) ? '' : 'none';
+    });
+
+    // Search in rooms list
+    document.querySelectorAll('#rooms > a').forEach(roomItem => {
+        const roomName = roomItem.querySelector('.font-medium').textContent.toLowerCase();
+        roomItem.style.display = roomName.includes(searchTerm) ? '' : 'none';
+    });
+});
+</script>
+{% endblock %}

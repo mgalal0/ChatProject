@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto p-6">
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="p-8">
+            <h2 class="text-2xl font-semibold text-center text-gray-900">Welcome Back</h2>
+            
+            <form method="POST" class="mt-8 space-y-6">
+                <div>
+                    <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+                    <input type="text" id="username" name="username" required autofocus
+                           class="mt-1 block w-full px-4 py-3 text-base rounded-lg border-gray-300 shadow-sm 
+                                  focus:border-blue-500 focus:ring-blue-500 
+                                  placeholder:text-gray-400">
+                </div>
+
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                    <input type="password" id="password" name="password" required
+                           class="mt-1 block w-full px-4 py-3 text-base rounded-lg border-gray-300 shadow-sm 
+                                  focus:border-blue-500 focus:ring-blue-500 
+                                  placeholder:text-gray-400">
+                </div>
+
+                <div class="flex items-center">
+                    <input type="checkbox" id="remember" name="remember"
+                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                    <label for="remember" class="ml-2 block text-sm text-gray-700">Remember me</label>
+                </div>
+
+                <button type="submit" 
+                        class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg
+                               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                    Login
+                </button>
+            </form>
+
+            <p class="mt-6 text-center text-sm text-gray-600">
+                Don't have an account? 
+                <a href="{{ url_for('signup') }}" class="text-blue-600 hover:text-blue-500">Sign Up</a>
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

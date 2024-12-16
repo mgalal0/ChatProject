@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <!-- Profile Section -->
+    <div class="lg:col-span-1">
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div class="p-6">
+                <div class="text-center">
+                    <div class="relative inline-block">
+                        <img src="{{ url_for('static', filename='uploads/' + current_user.profile_photo) }}" 
+                             class="h-24 w-24 rounded-full object-cover border-4 border-white shadow-lg" 
+                             alt="Profile">
+                        <span class="absolute bottom-1 right-1 h-4 w-4 rounded-full border-2 border-white {{ 'bg-green-500' if current_user.is_active else 'bg-gray-400' }}"></span>
+                    </div>
+                    <h2 class="mt-4 text-xl font-semibold text-gray-900">{{ current_user.username }}</h2>
+                </div>
+
+                <dl class="mt-6 space-y-4">
+                    <div class="flex justify-between text-sm">
+                        <dt class="font-medium text-gray-500">Email</dt>
+                        <dd class="text-gray-900">{{ current_user.email }}</dd>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <dt class="font-medium text-gray-500">Member Since</dt>
+                        <dd class="text-gray-900">{{ current_user.created_at.strftime('%B %d, %Y') }}</dd>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <dt class="font-medium text-gray-500">Last Active</dt>
+                        <dd class="text-gray-900">{{ current_user.last_seen.strftime('%B %d, %Y at %H:%M') }}</dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Section -->
+    <div class="lg:col-span-3 space-y-6">
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Messages Card -->
+            <div class="bg-white rounded-xl shadow-sm p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-lg font-medium text-gray-900">Messages</h3>
+                        <p class="mt-1 text-3xl font-semibold text-blue-600">{{ unread_messages }}</p>
+                        <p class="mt-1 text-sm text-gray-500">Unread messages</p>
+                    </div>
+                    <a href="{{ url_for('chat') }}" class="inline-flex items-center px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition">
+                        Open Chat
+                    </a>
+                </div>
+            </div>
+
+            <!-- Session Card -->
+            <div class="bg-white rounded-xl shadow-sm p-6">
+                <h3 class="text-lg font-medium text-gray-900">Session Status</h3>
+                <p class="mt-1 text-3xl font-semibold text-gray-900">{{ (config['PERMANENT_SESSION_LIFETIME'].total_seconds() / 60)|int }}m</p>
+                <p class="mt-1 text-sm text-gray-500">Until session expires</p>
+                <div class="mt-4 w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-blue-600 h-2 rounded-full" style="width: 75%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Messages -->
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h3 class="text-lg font-medium text-gray-900">Recent Messages</h3>
+                <a href="{{ url_for('chat') }}" class="text-sm text-blue-600 hover:text-blue-800">View All</a>
+            </div>
+            
+            {% if recent_messages %}
+            <div class="divide-y divide-gray-100">
+                {% for message in recent_messages %}
+                <a href="{{ url_for('private_chat', user_id=message.sender.id if message.sender_id != current_user.id else message.receiver.id) }}" 
+                   class="block hover:bg-gray-50 transition">
+                    <div class="p-4">
+                        <div class="flex items-center space-x-4">
+                            <div class="relative flex-shrink-0">
+                                <img src="{{ url_for('static', filename='uploads/' + (message.sender.profile_photo if message.sender_id != current_user.id else message.receiver.profile_photo)) }}"
+                                     class="h-12 w-12 rounded-full object-cover"
+                                     alt="Profile">
+                                <span class="absolute bottom-0 right-0 block h-3 w-3 rounded-full ring-2 ring-white {{ 'bg-green-500' if (message.sender.is_online if message.sender_id != current_user.id else message.receiver.is_online) else 'bg-gray-400' }}"></span>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between">
+                                    <p class="text-sm font-medium text-gray-900">{{ message.sender.username if message.sender_id != current_user.id else message.receiver.username }}</p>
+                                    <p class="text-sm text-gray-500">{{ message.timestamp.strftime('%H:%M') }}</p>
+                                </div>
+                                <div class="mt-1 flex items-center space-x-2">
+                                    <p class="text-sm text-gray-500 truncate">
+                                        {% if message.sender_id == current_user.id %}
+                                            <span class="text-blue-600">You:</span>
+                                        {% endif %}
+                                        {{ message.content }}
+                                    </p>
+                                    {% if not message.is_read and message.receiver_id == current_user.id %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                            New
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="p-8 text-center text-gray-500">
+                <p>No recent messages</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Quick Chat Modal -->
+<div id="quickChatModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50">
+    <div class="flex min-h-screen items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h3 class="text-lg font-medium">Quick Message</h3>
+                <button type="button" class="text-gray-400 hover:text-gray-500" onclick="closeModal()">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <form id="quickMessageForm" class="p-4">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">To:</label>
+                        <select id="quickMessageReceiver" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            {% for user in users %}
+                                {% if user.id != current_user.id %}
+                                    <option value="{{ user.id }}">{{ user.username }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Message:</label>
+                        <textarea id="quickMessageContent" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></textarea>
+                    </div>
+                    <button type="submit" class="w-full inline-flex justify-center rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                        Send Message
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const socket = io();
+    
+    function openModal() {
+        document.getElementById('quickChatModal').classList.remove('hidden');
+    }
+    
+    function closeModal() {
+        document.getElementById('quickChatModal').classList.add('hidden');
+    }
+    
+    document.getElementById('quickMessageForm')?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const receiverId = document.getElementById('quickMessageReceiver').value;
+        const content = document.getElementById('quickMessageContent').value;
+        
+        if (receiverId && content) {
+            socket.emit('send_message', {
+                receiver_id: receiverId,
+                message: content
+            });
+            
+            closeModal();
+            this.reset();
+            
+            // Show success message using Tailwind
+            // Add implementation here
+        }
+    });
+    
+    socket.on('new_message', function(data) {
+        // Update unread badge count
+        const unreadBadge = document.querySelector('[data-unread-count]');
+        if (unreadBadge) {
+            const currentCount = parseInt(unreadBadge.textContent) || 0;
+            unreadBadge.textContent = currentCount + 1;
+        }
+    });
+</script>
+{% endblock %}
